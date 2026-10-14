@@ -7,6 +7,7 @@ import { eventStatus, isPastDay, isToday, formatClock, type TimeStatus } from "@
 import { CategorySwitcher } from "@/components/CategorySwitcher";
 import { Toolbar, type Filters } from "@/components/Toolbar";
 import { EventCard } from "@/components/EventCard";
+import { EventRow } from "@/components/EventRow";
 
 const data = rawData as unknown as TWData;
 
@@ -24,6 +25,7 @@ const DEFAULT_FILTERS: Filters = {
 
 export default function Home() {
   const [category, setCategory] = useState("all");
+  const [view, setView] = useState<"cards" | "list">("list");
   const [filters, setFiltersState] = useState<Filters>(DEFAULT_FILTERS);
   const setFilters = (f: Partial<Filters>) =>
     setFiltersState((prev) => ({ ...prev, ...f }));
@@ -102,6 +104,23 @@ export default function Home() {
     return data.dayOrder.filter((d) => !isPastDay(d, now));
   }, [effectiveShowPast, now]);
 
+  // Group filtered results under day headers (only when sorted by day & time).
+  const useDayGroups = filters.sort === "day";
+  const dayGroups = useMemo(() => {
+    const groups: { day: string; label: string; items: TWEvent[] }[] = [];
+    const byDay = new Map<string, { day: string; label: string; items: TWEvent[] }>();
+    for (const ev of filtered) {
+      let g = byDay.get(ev.day);
+      if (!g) {
+        g = { day: ev.day, label: ev.dayLabel, items: [] };
+        byDay.set(ev.day, g);
+        groups.push(g);
+      }
+      g.items.push(ev);
+    }
+    return groups;
+  }, [filtered]);
+
   const activeCat = category === "all" ? null : data.categories[category];
   const hasActiveFilters =
     category !== "all" ||
@@ -132,6 +151,31 @@ export default function Home() {
     { n: data.dayOrder.length, l: "days" },
     { n: neighborhoods.length, l: "neighborhoods" },
   ];
+
+  const renderEvents = (items: TWEvent[]) =>
+    view === "cards" ? (
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+        {items.map((ev) => (
+          <EventCard
+            key={ev.id}
+            ev={ev}
+            category={data.categories[ev.category]}
+            status={statusOf.get(ev.id)}
+          />
+        ))}
+      </div>
+    ) : (
+      <div className="overflow-hidden rounded-xl border border-line bg-white/[0.02]">
+        {items.map((ev) => (
+          <EventRow
+            key={ev.id}
+            ev={ev}
+            category={data.categories[ev.category]}
+            status={statusOf.get(ev.id)}
+          />
+        ))}
+      </div>
+    );
 
   return (
     <>
@@ -248,6 +292,29 @@ export default function Home() {
           )}
 
           <div className="ml-auto flex items-center gap-2">
+            {/* view toggle */}
+            <div className="inline-flex overflow-hidden rounded-full border border-line">
+              <button
+                onClick={() => setView("list")}
+                aria-label="List view"
+                title="List view"
+                className={`px-3 py-1.5 text-[13px] transition-colors ${
+                  view === "list" ? "bg-white/90 text-bg" : "text-muted hover:text-ink"
+                }`}
+              >
+                ☰
+              </button>
+              <button
+                onClick={() => setView("cards")}
+                aria-label="Card view"
+                title="Card view"
+                className={`px-3 py-1.5 text-[13px] transition-colors ${
+                  view === "cards" ? "bg-white/90 text-bg" : "text-muted hover:text-ink"
+                }`}
+              >
+                ▦
+              </button>
+            </div>
             <div className="inline-flex overflow-hidden rounded-full border border-line">
               <button
                 onClick={() => filters.onlyBest && toggleBest()}
@@ -290,17 +357,26 @@ export default function Home() {
               Reset
             </button>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((ev) => (
-              <EventCard
-                key={ev.id}
-                ev={ev}
-                category={data.categories[ev.category]}
-                status={statusOf.get(ev.id)}
-              />
+        ) : useDayGroups ? (
+          <div className="space-y-9">
+            {dayGroups.map((g) => (
+              <section key={g.day}>
+                <div className="mb-3 flex items-baseline gap-2.5">
+                  <h4 className="font-display text-[15px] font-semibold">{g.label}</h4>
+                  {now && isToday(g.day, now) && (
+                    <span className="rounded-full bg-[#4ade80]/15 px-2 py-0.5 text-[11px] font-medium text-[#6fe39a]">
+                      Today
+                    </span>
+                  )}
+                  <span className="text-[12.5px] text-muted2">{g.items.length} events</span>
+                  <div className="ml-1 h-px flex-1 bg-line" />
+                </div>
+                {renderEvents(g.items)}
+              </section>
             ))}
           </div>
+        ) : (
+          renderEvents(filtered)
         )}
       </main>
 
