@@ -11,6 +11,7 @@ export interface Filters {
   hideClosed: boolean;
   onlyBest: boolean;
   showPast: boolean;
+  source: string; // "all" | techweek | luma | partiful
 }
 
 const PERIODS = [
@@ -113,6 +114,17 @@ export function Toolbar({
               {n}
             </option>
           ))}
+        </select>
+
+        <select
+          value={filters.source}
+          onChange={(e) => setFilters({ source: e.target.value })}
+          className="select-arrow cursor-pointer rounded-xl border border-line bg-bg2 py-2 pl-3 pr-8 text-[13px] text-ink"
+        >
+          <option value="all">All sources</option>
+          <option value="techweek">Tech Week</option>
+          <option value="luma">Luma</option>
+          <option value="partiful">Partiful</option>
         </select>
 
         <select

@@ -19,6 +19,7 @@ const DEFAULT_FILTERS: Filters = {
   hideClosed: false,
   onlyBest: false,
   showPast: false,
+  source: "all",
 };
 
 export default function Home() {
@@ -75,6 +76,7 @@ export default function Home() {
         return false;
       if (filters.hideClosed && (e.closed || e.canceled)) return false;
       if (filters.onlyBest && !e.best) return false;
+      if (filters.source !== "all" && e.source !== filters.source) return false;
       if (!effectiveShowPast && statusOf.get(e.id) === "past") return false;
       if (q) {
         const hay = (e.title + " " + e.host + " " + e.neighborhood).toLowerCase();
@@ -109,7 +111,8 @@ export default function Home() {
     filters.neighborhood !== "all" ||
     filters.hideClosed ||
     filters.onlyBest ||
-    filters.showPast;
+    filters.showPast ||
+    filters.source !== "all";
 
   const toggleBest = () =>
     setFiltersState((prev) =>
@@ -311,8 +314,17 @@ export default function Home() {
             className="text-muted hover:text-ink"
           >
             tech-week.com
+          </a>{" "}
+          and{" "}
+          <a
+            href="https://luma.com/latw"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-muted hover:text-ink"
+          >
+            luma.com/latw
           </a>
-          . Not affiliated with a16z or Tech Week.
+          . Not affiliated with a16z, Tech Week, or Luma.
         </p>
       </footer>
     </>

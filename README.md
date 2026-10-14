@@ -57,9 +57,15 @@ scripts/
 
 ## Data pipeline
 
-1. **Scrape** — events were pulled per-day from `tech-week.com/calendar/la?day=YYYY-MM-DD`
+Two sources are merged (deduped by title), each event tagged with its `source`:
+
+1. **Scrape Tech Week** — events pulled per-day from `tech-week.com/calendar/la?day=YYYY-MM-DD`
    (the schedule table: time, title, host, neighborhood, status) into `data/events.raw.json`.
-2. **Process** — `scripts/process.js` categorizes each event by keyword heuristics
+2. **Fetch Luma** — `scripts/fetch-luma.js` hits the public Luma calendar API for
+   `luma.com/latw`, windows to Oct 12–18 2026 (the calendar spans multiple years),
+   converts times to LA local, and writes `data/luma.raw.json`. Luma also gives RSVP
+   guest counts, which feed the ranking as a demand signal. Run: `node scripts/fetch-luma.js`.
+3. **Process** — `scripts/process.js` merges both, categorizes each event by keyword heuristics
    (title + host), parses times into periods, flags status (featured/closed/waitlist),
    and builds the real apply URL. Regenerate with:
 

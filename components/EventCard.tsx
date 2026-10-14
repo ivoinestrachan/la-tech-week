@@ -13,6 +13,8 @@ export function EventCard({
 }) {
   const color = catColor(ev.category);
   const isPast = status === "past";
+  const sourceLabel =
+    ev.source === "luma" ? "Luma" : ev.source === "partiful" ? "Partiful" : "Tech Week";
   const statusBadge = ev.featured
     ? { label: "Featured", cls: "bg-orange/15 text-orange" }
     : ev.closed || ev.canceled
@@ -86,6 +88,9 @@ export function EventCard({
           }}
         >
           {category?.emoji} {category?.label ?? ev.category}
+        </span>
+        <span className="rounded-full border border-line px-[7px] py-[2px] text-[10.5px] uppercase tracking-wide text-muted2">
+          {sourceLabel}
         </span>
         <span className="ml-auto inline-flex items-center gap-1 text-[12px] text-muted2">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

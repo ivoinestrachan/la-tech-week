@@ -20,6 +20,8 @@ export interface TWEvent {
   score: number;
   best: boolean;
   bestReasons: string[];
+  source: string; // "techweek" | "luma" | "partiful"
+  guestCount?: number;
   url: string;
 }
 
@@ -40,6 +42,7 @@ export interface TWData {
   source: string;
   total: number;
   bestCount: number;
+  sources: Record<string, number>;
   categories: Record<string, CategoryMeta>;
   categoryOrder: string[];
   days: Record<string, DayMeta>;

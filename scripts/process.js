@@ -4,9 +4,17 @@ const fs = require("fs");
 const path = require("path");
 
 const RAW = path.join(__dirname, "..", "data", "events.raw.json");
+const LUMA_RAW = path.join(__dirname, "..", "data", "luma.raw.json");
 const OUT = path.join(__dirname, "..", "data", "events.json");
 
 const raw = JSON.parse(fs.readFileSync(RAW, "utf8"));
+const lumaRaw = fs.existsSync(LUMA_RAW)
+  ? JSON.parse(fs.readFileSync(LUMA_RAW, "utf8"))
+  : [];
+
+// Normalized title key used to de-duplicate across sources.
+const titleKey = (s) =>
+  (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 // --- Category definitions -------------------------------------------------
 // Order matters: the first matching category (by keyword hit) becomes the
@@ -291,6 +299,18 @@ function computeQuality(ev) {
     reasons.push("Waitlisted");
   }
 
+  // RSVP volume (Luma events expose a guest count) — a crowd is a quality proxy.
+  const guests = ev.guestCount || 0;
+  if (guests >= 150) {
+    score += 12;
+    reasons.push(`Popular · ${guests} going`);
+  } else if (guests >= 60) {
+    score += 7;
+    reasons.push(`${guests} going`);
+  } else if (guests >= 25) {
+    score += 3;
+  }
+
   // Collaborations (multiple co-hosts) tend to be bigger productions.
   const hostCount = hostL ? hostL.split(",").filter((s) => s.trim()).length : 0;
   if (hostCount >= 2) {
@@ -337,6 +357,7 @@ const events = raw.map((ev, i) => {
     waitlist,
     closed,
     canceled,
+    source: "techweek",
     url: "https://www.tech-week.com/go/event/" + ev.href,
   };
   const q = computeQuality(base);
@@ -364,6 +385,7 @@ const connorsEvents = CONNORS_EVENTS.map((c, i) => {
     waitlist: !!c.waitlist,
     closed: !!c.closed,
     canceled: false,
+    source: "partiful",
     url: c.url,
   };
 });
@@ -374,6 +396,44 @@ connorsEvents.forEach((e) => {
   e.bestReasons = q.reasons;
 });
 events.push(...connorsEvents);
+
+// --- Merge Luma (luma.com/latw) events ------------------------------------
+// Skip any whose title already exists (from the tech-week table) to avoid dupes.
+const seenTitles = new Set(events.map((e) => titleKey(e.title)));
+const lumaEvents = lumaRaw
+  .filter((l) => l.title && !seenTitles.has(titleKey(l.title)))
+  .map((l, i) => {
+    const { primary, tags } = categorize(l);
+    const t = parseTime(l.time);
+    const d = DAY_LABELS[l.day] || { short: l.day, label: l.day };
+    const statusList = (l.status || []).map((s) => s.toLowerCase());
+    const closed = statusList.some((s) => /closed|sold|cancel/.test(s));
+    const waitlist = statusList.includes("waitlist");
+    const base = {
+      id: 80000 + i,
+      title: l.title,
+      host: l.host || "Independent host",
+      neighborhood: l.neighborhood || "Los Angeles",
+      day: l.day,
+      dayShort: d.short,
+      dayLabel: d.label,
+      time: t.label,
+      minutes: t.minutes,
+      period: t.period,
+      category: primary,
+      tags: [...new Set(tags)],
+      featured: false,
+      waitlist,
+      closed,
+      canceled: false,
+      guestCount: l.guestCount || 0,
+      source: "luma",
+      url: l.url,
+    };
+    const q = computeQuality(base);
+    return { ...base, score: q.score, best: q.best, bestReasons: q.reasons };
+  });
+events.push(...lumaEvents);
 
 // sort by day then time
 const DAY_ORDER = Object.keys(DAY_LABELS);
@@ -392,11 +452,15 @@ events.forEach((e) => { counts[e.category] = (counts[e.category] || 0) + 1; });
 
 const bestCount = events.filter((e) => e.best).length;
 
+const sources = {};
+events.forEach((e) => { sources[e.source] = (sources[e.source] || 0) + 1; });
+
 const out = {
   generatedAt: "2026-10-14",
-  source: "tech-week.com/calendar/la",
+  source: "tech-week.com/calendar/la + luma.com/latw",
   total: events.length,
   bestCount,
+  sources,
   categories: catMeta,
   categoryOrder: [CONNORS_META.id, ...CATEGORIES.map((c) => c.id), SOCIAL.id],
   days: DAY_LABELS,
