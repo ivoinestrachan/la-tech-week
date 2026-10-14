@@ -229,6 +229,89 @@ const DAY_LABELS = {
   "2026-10-18": { short: "Sun", label: "Sun, Oct 18" },
 };
 
+// --- "Best events" ranking algorithm -------------------------------------
+// Every event gets a transparent 0–100 quality score from a weighted rubric.
+// Events scoring at/above BEST_THRESHOLD are promoted to the "Best" tier.
+const BEST_THRESHOLD = 50;
+
+// Marquee hosts: top funds, big tech, and notable operators. Lowercased
+// substrings matched against the host string.
+const NOTABLE_HOSTS = [
+  "a16z", "andreessen", "speedrun", "sequoia", "lightspeed", "accel",
+  "general catalyst", "khosla", "founders fund", "greylock", "benchmark",
+  "bessemer", "menlo", "first round", "nea", "index ventures", "craft",
+  "upfront", "mucker", "8vc", "initialized", "y combinator", "ycombinator",
+  "techstars", "plug and play", "gold house", "gradient", "gv",
+  "google", "adobe", "anthropic", "openai", "amazon", "aws", "microsoft",
+  "nvidia", "meta", "apple", "stripe", "ramp", "brex", "visa", "mastercard",
+  "hsbc", "wells fargo", "jpmorgan", "morgan stanley", "goldman",
+  "elevenlabs", "vercel", "notion", "figma", "databricks", "scale ai",
+  "mathworks", "sphere", "tinder", "pwc", "kpmg", "deloitte", "ey",
+  "fenwick", "cooley", "wilson sonsini", "greenberg traurig", "vast",
+];
+
+// Title phrases that signal a flagship / high-signal event.
+const TITLE_SIGNALS = [
+  { kw: ["official", "kickoff", "flagship"], pts: 12 },
+  { kw: ["keynote", "summit", "mainstage", "main stage"], pts: 9 },
+  { kw: ["exclusive", "invite only", "invite-only", "vip", "private", "curated"], pts: 8 },
+  { kw: ["demo day", "pitch competition", "shark tank"], pts: 6 },
+  { kw: ["a16z", "speedrun"], pts: 8 },
+];
+
+function computeQuality(ev) {
+  const reasons = [];
+  if (ev.canceled) return { score: 0, best: false, reasons: ["Canceled"] };
+
+  let score = 18; // baseline for any listed event
+  const hostL = (ev.host || "").toLowerCase();
+  const titleL = (ev.title || "").toLowerCase();
+
+  if (ev.category === "connors") {
+    score += 46;
+    reasons.push("Hand-picked");
+  }
+  if (ev.featured) {
+    score += 40;
+    reasons.push("Featured by Tech Week");
+  }
+
+  const notable = NOTABLE_HOSTS.filter((h) => hostL.includes(h));
+  if (notable.length) {
+    score += Math.min(30, 18 + (notable.length - 1) * 4);
+    reasons.push("Notable host");
+  }
+
+  // Demand signal: a closed / sold-out event filled up; waitlist = high interest.
+  if (ev.closed) {
+    score += 14;
+    reasons.push("Sold out / high demand");
+  } else if (ev.waitlist) {
+    score += 9;
+    reasons.push("Waitlisted");
+  }
+
+  // Collaborations (multiple co-hosts) tend to be bigger productions.
+  const hostCount = hostL ? hostL.split(",").filter((s) => s.trim()).length : 0;
+  if (hostCount >= 2) {
+    score += Math.min(9, (hostCount - 1) * 3);
+    if (hostCount >= 3) reasons.push("Multi-host collab");
+  }
+
+  // Title signals (capped so a keyword-stuffed title can't dominate).
+  let titlePts = 0;
+  for (const s of TITLE_SIGNALS) {
+    if (s.kw.some((k) => titleL.includes(k))) titlePts += s.pts;
+  }
+  if (titlePts > 0) {
+    score += Math.min(18, titlePts);
+    reasons.push("Flagship-style event");
+  }
+
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  return { score, best: score >= BEST_THRESHOLD, reasons };
+}
+
 const events = raw.map((ev, i) => {
   const { primary, tags } = categorize(ev);
   const t = parseTime(ev.time);
@@ -237,7 +320,7 @@ const events = raw.map((ev, i) => {
   const featured = statusList.includes("featured");
   const waitlist = statusList.includes("waitlist");
   const canceled = statusList.some((s) => /cancel/.test(s));
-  return {
+  const base = {
     id: i,
     title: ev.title,
     host: ev.host,
@@ -256,6 +339,8 @@ const events = raw.map((ev, i) => {
     canceled,
     url: "https://www.tech-week.com/go/event/" + ev.href,
   };
+  const q = computeQuality(base);
+  return { ...base, score: q.score, best: q.best, bestReasons: q.reasons };
 });
 
 // Build Connor's curated events and prepend them to the dataset.
@@ -282,6 +367,12 @@ const connorsEvents = CONNORS_EVENTS.map((c, i) => {
     url: c.url,
   };
 });
+connorsEvents.forEach((e) => {
+  const q = computeQuality(e);
+  e.score = q.score;
+  e.best = q.best;
+  e.bestReasons = q.reasons;
+});
 events.push(...connorsEvents);
 
 // sort by day then time
@@ -299,10 +390,13 @@ const catMeta = {};
 const counts = {};
 events.forEach((e) => { counts[e.category] = (counts[e.category] || 0) + 1; });
 
+const bestCount = events.filter((e) => e.best).length;
+
 const out = {
   generatedAt: "2026-10-14",
   source: "tech-week.com/calendar/la",
   total: events.length,
+  bestCount,
   categories: catMeta,
   categoryOrder: [CONNORS_META.id, ...CATEGORIES.map((c) => c.id), SOCIAL.id],
   days: DAY_LABELS,
@@ -314,3 +408,14 @@ const out = {
 fs.writeFileSync(OUT, JSON.stringify(out, null, 0));
 console.log("Wrote", OUT, "with", events.length, "events");
 console.log("Category counts:", JSON.stringify(counts, null, 2));
+console.log(`Best tier: ${bestCount}/${events.length} (${Math.round((bestCount / events.length) * 100)}%)`);
+const buckets = { "0-19": 0, "20-39": 0, "40-57": 0, "58-74": 0, "75-100": 0 };
+events.forEach((e) => {
+  if (e.score < 20) buckets["0-19"]++;
+  else if (e.score < 40) buckets["20-39"]++;
+  else if (e.score < 58) buckets["40-57"]++;
+  else if (e.score < 75) buckets["58-74"]++;
+  else buckets["75-100"]++;
+});
+console.log("Score distribution:", JSON.stringify(buckets));
+console.log("Top 10:", events.slice().sort((a, b) => b.score - a.score).slice(0, 10).map((e) => `${e.score} ${e.title.slice(0, 42)}`));

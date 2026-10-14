@@ -16,6 +16,7 @@ const DEFAULT_FILTERS: Filters = {
   neighborhood: "all",
   sort: "day",
   hideClosed: false,
+  onlyBest: false,
 };
 
 export default function Home() {
@@ -44,6 +45,7 @@ export default function Home() {
       if (filters.neighborhood !== "all" && e.neighborhood !== filters.neighborhood)
         return false;
       if (filters.hideClosed && (e.closed || e.canceled)) return false;
+      if (filters.onlyBest && !e.best) return false;
       if (q) {
         const hay = (e.title + " " + e.host + " " + e.neighborhood).toLowerCase();
         if (!hay.includes(q)) return false;
@@ -53,8 +55,8 @@ export default function Home() {
 
     list = [...list].sort((a: TWEvent, b: TWEvent) => {
       if (filters.sort === "title") return a.title.localeCompare(b.title);
-      if (filters.sort === "featured") {
-        if (a.featured !== b.featured) return a.featured ? -1 : 1;
+      if (filters.sort === "best") {
+        if (b.score !== a.score) return b.score - a.score;
       }
       const d = (dayIndex[a.day] ?? 0) - (dayIndex[b.day] ?? 0);
       return d !== 0 ? d : a.minutes - b.minutes;
@@ -69,7 +71,15 @@ export default function Home() {
     filters.day !== "all" ||
     filters.period !== "all" ||
     filters.neighborhood !== "all" ||
-    filters.hideClosed;
+    filters.hideClosed ||
+    filters.onlyBest;
+
+  const toggleBest = () =>
+    setFiltersState((prev) =>
+      prev.onlyBest
+        ? { ...prev, onlyBest: false, sort: "day" }
+        : { ...prev, onlyBest: true, sort: "best" },
+    );
 
   const resetAll = () => {
     setCategory("all");
@@ -78,8 +88,8 @@ export default function Home() {
 
   const heroStats = [
     { n: data.total, l: "events" },
+    { n: data.bestCount, l: "best picks", star: true },
     { n: data.dayOrder.length, l: "days" },
-    { n: data.categoryOrder.length, l: "categories" },
     { n: neighborhoods.length, l: "neighborhoods" },
   ];
 
@@ -127,9 +137,17 @@ export default function Home() {
           {heroStats.map((s) => (
             <span
               key={s.l}
-              className="inline-flex items-baseline gap-1.5 rounded-full border border-line bg-white/[0.04] px-3.5 py-2 text-[13px] text-muted"
+              className={`inline-flex items-baseline gap-1.5 rounded-full border px-3.5 py-2 text-[13px] ${
+                s.star
+                  ? "border-[#d9b44a]/40 bg-[#d9b44a]/10 text-[#e3c360]"
+                  : "border-line bg-white/[0.04] text-muted"
+              }`}
             >
-              <b className="font-display text-[14px] text-ink">{s.n}</b> {s.l}
+              <b className={`font-display text-[14px] ${s.star ? "text-[#e3c360]" : "text-ink"}`}>
+                {s.star ? "★ " : ""}
+                {s.n}
+              </b>{" "}
+              {s.l}
             </span>
           ))}
         </div>
@@ -163,19 +181,42 @@ export default function Home() {
 
       {/* results */}
       <main className="mx-auto max-w-[1180px] px-4 pb-16 pt-6 sm:px-6 lg:px-12">
-        <div className="mb-5 flex items-baseline gap-3">
+        <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2">
           <h3 className="font-display text-[22px]">
             {activeCat ? `${activeCat.emoji} ${activeCat.label}` : "All events"}
           </h3>
           <span className="text-[14px] text-muted">{filtered.length} events</span>
-          {hasActiveFilters && (
-            <button
-              onClick={resetAll}
-              className="ml-auto rounded-full border border-lineStrong px-3.5 py-1.5 text-[13px] text-muted transition-colors hover:border-ink hover:text-ink"
-            >
-              Clear filters
-            </button>
-          )}
+
+          <div className="ml-auto flex items-center gap-2">
+            <div className="inline-flex overflow-hidden rounded-full border border-line">
+              <button
+                onClick={() => filters.onlyBest && toggleBest()}
+                className={`px-3.5 py-1.5 text-[13px] transition-colors ${
+                  !filters.onlyBest ? "bg-white/90 font-semibold text-bg" : "text-muted hover:text-ink"
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => !filters.onlyBest && toggleBest()}
+                className={`inline-flex items-center gap-1 px-3.5 py-1.5 text-[13px] transition-colors ${
+                  filters.onlyBest
+                    ? "bg-[#d9b44a] font-semibold text-bg"
+                    : "text-[#e3c360] hover:text-[#f0d279]"
+                }`}
+              >
+                ★ Best <span className="opacity-70">{data.bestCount}</span>
+              </button>
+            </div>
+            {hasActiveFilters && (
+              <button
+                onClick={resetAll}
+                className="rounded-full border border-lineStrong px-3.5 py-1.5 text-[13px] text-muted transition-colors hover:border-ink hover:text-ink"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
 
         {filtered.length === 0 ? (

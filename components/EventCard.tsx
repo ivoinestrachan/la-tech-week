@@ -36,6 +36,14 @@ export function EventCard({
         <span className="rounded-md bg-white/[0.07] px-2 py-1 font-display text-[11.5px] font-semibold tracking-wide">
           {ev.dayShort} · {ev.time}
         </span>
+        {ev.best && (
+          <span
+            title={ev.bestReasons?.join(" · ")}
+            className="inline-flex items-center gap-1 rounded-md border border-[#d9b44a]/40 bg-[#d9b44a]/12 px-2 py-[3px] text-[10.5px] font-semibold uppercase tracking-wider text-[#e3c360]"
+          >
+            ★ Best
+          </span>
+        )}
         {statusBadge && (
           <span
             className={`ml-auto rounded-md px-2 py-[3px] text-[10.5px] font-semibold uppercase tracking-wider ${statusBadge.cls}`}

@@ -67,6 +67,31 @@ scripts/
 Categories and their keyword rules live at the top of `scripts/process.js` — tweak
 them there and re-run to recategorize.
 
+## "Best Events" ranking algorithm
+
+Alongside categories, every event gets a transparent **0–100 quality score**
+(`scripts/process.js → computeQuality`). Events at/above the threshold
+(`BEST_THRESHOLD`, currently 50) are promoted to the **Best** tier, toggled via the
+`★ Best` control and surfaced by the "Top rated" sort.
+
+The score is a weighted rubric over the signals we actually have:
+
+| Signal | Weight | Why |
+|---|---|---|
+| Baseline | +18 | Every listed event starts here |
+| Hand-picked (Connor's) | +46 | Human curation is the strongest signal |
+| Featured by Tech Week | +40 | Editorially highlighted by the organizers |
+| Notable host | +18 (+4 each extra, cap 30) | Top funds / big tech / known operators (`NOTABLE_HOSTS`) |
+| Sold out / closed | +14 | Demand proxy — it filled up |
+| Waitlisted | +9 | High interest |
+| Multi-host collab | +3 each (cap 9) | Bigger co-produced events |
+| Flagship title cues | up to +18 | "official", "keynote", "summit", "invite only", "demo day"… |
+
+Each best event stores its `bestReasons` (shown on hover of the ★ Best badge), so the
+ranking is explainable rather than a black box. The threshold and all weights are
+constants at the top of the file — raise/lower `BEST_THRESHOLD` to make the tier
+stricter or more inclusive, then `npm run scrape:process`.
+
 ## Notes
 
 Not affiliated with a16z or Tech Week. Data is a point-in-time index for convenience;

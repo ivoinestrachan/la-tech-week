@@ -7,8 +7,9 @@ export interface Filters {
   day: string; // "all" | date
   period: string; // "all" | morning | afternoon | evening
   neighborhood: string; // "all" | name
-  sort: string; // day | title | featured
+  sort: string; // day | title | best
   hideClosed: boolean;
+  onlyBest: boolean;
 }
 
 const PERIODS = [
@@ -108,8 +109,8 @@ export function Toolbar({
           className="select-arrow cursor-pointer rounded-xl border border-line bg-bg2 py-2 pl-3 pr-8 text-[13px] text-ink"
         >
           <option value="day">Sort: day &amp; time</option>
+          <option value="best">Sort: top rated</option>
           <option value="title">Sort: A → Z</option>
-          <option value="featured">Sort: featured first</option>
         </select>
 
         <label className="inline-flex cursor-pointer select-none items-center gap-2 text-[13px] text-muted">

@@ -17,6 +17,9 @@ export interface TWEvent {
   waitlist: boolean;
   closed: boolean;
   canceled: boolean;
+  score: number;
+  best: boolean;
+  bestReasons: string[];
   url: string;
 }
 
@@ -36,6 +39,7 @@ export interface TWData {
   generatedAt: string;
   source: string;
   total: number;
+  bestCount: number;
   categories: Record<string, CategoryMeta>;
   categoryOrder: string[];
   days: Record<string, DayMeta>;
