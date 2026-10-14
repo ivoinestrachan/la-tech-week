@@ -21,6 +21,13 @@ const PERIODS = [
   { id: "evening", label: "Evening" },
 ];
 
+const SOURCES = [
+  { id: "all", label: "All" },
+  { id: "techweek", label: "Tech Week" },
+  { id: "luma", label: "Luma" },
+  { id: "partiful", label: "Partiful" },
+];
+
 export function Toolbar({
   filters,
   setFilters,
@@ -28,6 +35,7 @@ export function Toolbar({
   dayOrder,
   neighborhoods,
   todayISO,
+  sourceCounts,
 }: {
   filters: Filters;
   setFilters: (f: Partial<Filters>) => void;
@@ -35,6 +43,7 @@ export function Toolbar({
   dayOrder: string[];
   neighborhoods: string[];
   todayISO?: string;
+  sourceCounts?: Record<string, number>;
 }) {
   const dayChips = [
     { id: "all", label: filters.showPast ? "All days" : "All upcoming", today: false },
@@ -116,16 +125,24 @@ export function Toolbar({
           ))}
         </select>
 
-        <select
-          value={filters.source}
-          onChange={(e) => setFilters({ source: e.target.value })}
-          className="select-arrow cursor-pointer rounded-xl border border-line bg-bg2 py-2 pl-3 pr-8 text-[13px] text-ink"
-        >
-          <option value="all">All sources</option>
-          <option value="techweek">Tech Week</option>
-          <option value="luma">Luma</option>
-          <option value="partiful">Partiful</option>
-        </select>
+        <div className="inline-flex overflow-hidden rounded-xl border border-line">
+          {SOURCES.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setFilters({ source: s.id })}
+              className={`px-3 py-[7px] text-[13px] transition-colors ${
+                filters.source === s.id
+                  ? "bg-white/90 font-semibold text-bg"
+                  : "text-muted hover:text-ink"
+              }`}
+            >
+              {s.label}
+              {sourceCounts && s.id !== "all" && (
+                <span className="ml-1 opacity-60">{sourceCounts[s.id] ?? 0}</span>
+              )}
+            </button>
+          ))}
+        </div>
 
         <select
           value={filters.sort}

@@ -226,6 +226,7 @@ export default function Home() {
           dayOrder={visibleDayOrder}
           neighborhoods={neighborhoods}
           todayISO={now ? data.dayOrder.find((d) => isToday(d, now)) : undefined}
+          sourceCounts={data.sources}
         />
       </div>
 
