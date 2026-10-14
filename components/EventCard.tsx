@@ -1,14 +1,18 @@
 import type { TWEvent, CategoryMeta } from "@/lib/types";
+import type { TimeStatus } from "@/lib/time";
 import { catColor } from "@/lib/colors";
 
 export function EventCard({
   ev,
   category,
+  status,
 }: {
   ev: TWEvent;
   category?: CategoryMeta;
+  status?: TimeStatus;
 }) {
   const color = catColor(ev.category);
+  const isPast = status === "past";
   const statusBadge = ev.featured
     ? { label: "Featured", cls: "bg-orange/15 text-orange" }
     : ev.closed || ev.canceled
@@ -24,7 +28,7 @@ export function EventCard({
       rel="noopener noreferrer"
       style={{ ["--cat" as string]: color }}
       className={`group relative flex flex-col overflow-hidden rounded-2xl border border-line bg-white/[0.04] p-4 transition-all duration-150 hover:-translate-y-0.5 hover:border-lineStrong hover:bg-white/[0.07] ${
-        ev.closed || ev.canceled ? "opacity-60" : ""
+        isPast ? "opacity-45" : ev.closed || ev.canceled ? "opacity-60" : ""
       }`}
     >
       <span
@@ -33,9 +37,24 @@ export function EventCard({
       />
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <span className="rounded-md bg-white/[0.07] px-2 py-1 font-display text-[11.5px] font-semibold tracking-wide">
-          {ev.dayShort} · {ev.time}
-        </span>
+        {status === "live" ? (
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-[#4ade80]/15 px-2 py-1 font-display text-[11.5px] font-semibold tracking-wide text-[#6fe39a]">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#4ade80] opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#4ade80]" />
+            </span>
+            LIVE NOW
+          </span>
+        ) : status === "soon" ? (
+          <span className="rounded-md bg-[#ffa23a]/15 px-2 py-1 font-display text-[11.5px] font-semibold tracking-wide text-[#ffb866]">
+            SOON · {ev.time}
+          </span>
+        ) : (
+          <span className="rounded-md bg-white/[0.07] px-2 py-1 font-display text-[11.5px] font-semibold tracking-wide">
+            {ev.dayShort} · {ev.time}
+            {isPast && <span className="ml-1 text-muted2">· ended</span>}
+          </span>
+        )}
         {ev.best && (
           <span
             title={ev.bestReasons?.join(" · ")}

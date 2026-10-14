@@ -10,6 +10,7 @@ export interface Filters {
   sort: string; // day | title | best
   hideClosed: boolean;
   onlyBest: boolean;
+  showPast: boolean;
 }
 
 const PERIODS = [
@@ -25,16 +26,22 @@ export function Toolbar({
   days,
   dayOrder,
   neighborhoods,
+  todayISO,
 }: {
   filters: Filters;
   setFilters: (f: Partial<Filters>) => void;
   days: Record<string, DayMeta>;
   dayOrder: string[];
   neighborhoods: string[];
+  todayISO?: string;
 }) {
   const dayChips = [
-    { id: "all", label: "All days" },
-    ...dayOrder.map((d) => ({ id: d, label: days[d]?.label ?? d })),
+    { id: "all", label: filters.showPast ? "All days" : "All upcoming", today: false },
+    ...dayOrder.map((d) => ({
+      id: d,
+      label: d === todayISO ? "Today" : days[d]?.label ?? d,
+      today: d === todayISO,
+    })),
   ];
 
   return (
@@ -61,12 +68,17 @@ export function Toolbar({
           <button
             key={c.id}
             onClick={() => setFilters({ day: c.id })}
-            className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-[7px] text-[13px] transition-all ${
+            className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-[7px] text-[13px] transition-all ${
               filters.day === c.id
                 ? "border-ink bg-ink font-semibold text-[#14121b]"
-                : "border-line bg-white/[0.04] text-muted hover:border-lineStrong hover:text-ink"
+                : c.today
+                  ? "border-[#4ade80]/40 bg-[#4ade80]/10 text-[#6fe39a] hover:border-[#4ade80]/70"
+                  : "border-line bg-white/[0.04] text-muted hover:border-lineStrong hover:text-ink"
             }`}
           >
+            {c.today && filters.day !== c.id && (
+              <span className="h-1.5 w-1.5 rounded-full bg-[#4ade80]" />
+            )}
             {c.label}
           </button>
         ))}
@@ -121,6 +133,16 @@ export function Toolbar({
             className="h-[15px] w-[15px] accent-white"
           />
           <span>Hide closed</span>
+        </label>
+
+        <label className="inline-flex cursor-pointer select-none items-center gap-2 text-[13px] text-muted">
+          <input
+            type="checkbox"
+            checked={filters.showPast}
+            onChange={(e) => setFilters({ showPast: e.target.checked })}
+            className="h-[15px] w-[15px] accent-white"
+          />
+          <span>Show past</span>
         </label>
       </div>
     </div>

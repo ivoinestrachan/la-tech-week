@@ -10,6 +10,9 @@ Built with **Next.js 15 (App Router) · TypeScript · Tailwind CSS**. Fully mobi
 
 ## Features
 
+- **Live & time-aware** — a ticking clock, past days auto-hidden, "● LIVE NOW" / "SOON" /
+  "ended" status on every card, and a "N happening now" counter. Toggle "Show past" to see
+  the full week. (`lib/time.ts`)
 - **Browse by category** — tap any section card to filter the whole schedule to that lane.
 - **Filters** — search, day (Mon–Sun), time of day (morning/afternoon/evening),
   neighborhood, and a "hide closed" toggle.

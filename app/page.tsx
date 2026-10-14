@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import rawData from "@/data/events.json";
 import type { TWData, TWEvent } from "@/lib/types";
+import { eventStatus, isPastDay, isToday, formatClock, type TimeStatus } from "@/lib/time";
 import { CategorySwitcher } from "@/components/CategorySwitcher";
 import { Toolbar, type Filters } from "@/components/Toolbar";
 import { EventCard } from "@/components/EventCard";
@@ -17,6 +18,7 @@ const DEFAULT_FILTERS: Filters = {
   sort: "day",
   hideClosed: false,
   onlyBest: false,
+  showPast: false,
 };
 
 export default function Home() {
@@ -24,6 +26,33 @@ export default function Home() {
   const [filters, setFiltersState] = useState<Filters>(DEFAULT_FILTERS);
   const setFilters = (f: Partial<Filters>) =>
     setFiltersState((prev) => ({ ...prev, ...f }));
+
+  // Live "now" — null until mounted to avoid SSR/hydration mismatch. Ticks each minute.
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Per-event time status, recomputed when the minute ticks.
+  const statusOf = useMemo(() => {
+    const map = new Map<number, TimeStatus>();
+    if (now) data.events.forEach((e) => map.set(e.id, eventStatus(e, now)));
+    return map;
+  }, [now]);
+
+  // If the whole week is already over, don't hide everything — fall back to showing all.
+  const hasUpcoming = useMemo(
+    () => (now ? data.events.some((e) => statusOf.get(e.id) !== "past") : true),
+    [now, statusOf],
+  );
+  const effectiveShowPast = filters.showPast || !hasUpcoming || !now;
+
+  const liveCount = useMemo(
+    () => (now ? data.events.filter((e) => statusOf.get(e.id) === "live").length : 0),
+    [now, statusOf],
+  );
 
   const neighborhoods = useMemo(() => {
     const set = new Set(data.events.map((e) => e.neighborhood).filter(Boolean));
@@ -46,6 +75,7 @@ export default function Home() {
         return false;
       if (filters.hideClosed && (e.closed || e.canceled)) return false;
       if (filters.onlyBest && !e.best) return false;
+      if (!effectiveShowPast && statusOf.get(e.id) === "past") return false;
       if (q) {
         const hay = (e.title + " " + e.host + " " + e.neighborhood).toLowerCase();
         if (!hay.includes(q)) return false;
@@ -62,7 +92,13 @@ export default function Home() {
       return d !== 0 ? d : a.minutes - b.minutes;
     });
     return list;
-  }, [category, filters, dayIndex]);
+  }, [category, filters, dayIndex, effectiveShowPast, statusOf]);
+
+  // Day chips: drop fully-past days unless "show past" is on.
+  const visibleDayOrder = useMemo(() => {
+    if (effectiveShowPast || !now) return data.dayOrder;
+    return data.dayOrder.filter((d) => !isPastDay(d, now));
+  }, [effectiveShowPast, now]);
 
   const activeCat = category === "all" ? null : data.categories[category];
   const hasActiveFilters =
@@ -72,7 +108,8 @@ export default function Home() {
     filters.period !== "all" ||
     filters.neighborhood !== "all" ||
     filters.hideClosed ||
-    filters.onlyBest;
+    filters.onlyBest ||
+    filters.showPast;
 
   const toggleBest = () =>
     setFiltersState((prev) =>
@@ -107,6 +144,15 @@ export default function Home() {
           </div>
         </div>
         <div className="flex items-center gap-3 sm:gap-4">
+          {now && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-lineStrong px-3 py-[5px] font-display text-[12.5px] text-muted">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#4ade80] opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#4ade80]" />
+              </span>
+              {formatClock(now)}
+            </span>
+          )}
           <span className="hidden rounded-full border border-lineStrong px-3 py-[5px] font-display text-[12.5px] text-muted sm:inline">
             {filtered.length} shown
           </span>
@@ -174,8 +220,9 @@ export default function Home() {
           filters={filters}
           setFilters={setFilters}
           days={data.days}
-          dayOrder={data.dayOrder}
+          dayOrder={visibleDayOrder}
           neighborhoods={neighborhoods}
+          todayISO={now ? data.dayOrder.find((d) => isToday(d, now)) : undefined}
         />
       </div>
 
@@ -186,6 +233,15 @@ export default function Home() {
             {activeCat ? `${activeCat.emoji} ${activeCat.label}` : "All events"}
           </h3>
           <span className="text-[14px] text-muted">{filtered.length} events</span>
+          {liveCount > 0 && !filters.onlyBest && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#4ade80]/12 px-2.5 py-1 text-[12.5px] font-medium text-[#6fe39a]">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#4ade80] opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#4ade80]" />
+              </span>
+              {liveCount} happening now
+            </span>
+          )}
 
           <div className="ml-auto flex items-center gap-2">
             <div className="inline-flex overflow-hidden rounded-full border border-line">
@@ -233,7 +289,12 @@ export default function Home() {
         ) : (
           <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((ev) => (
-              <EventCard key={ev.id} ev={ev} category={data.categories[ev.category]} />
+              <EventCard
+                key={ev.id}
+                ev={ev}
+                category={data.categories[ev.category]}
+                status={statusOf.get(ev.id)}
+              />
             ))}
           </div>
         )}
